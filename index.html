@@ -5,122 +5,119 @@
 <title>TheoGen PRO</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-body {
-    font-family: Arial;
-    background: #121212;
-    color: white;
-    text-align: center;
-}
-.container {
-    margin-top: 30px;
-}
-.card {
-    background: #1e1e1e;
-    padding: 20px;
-    width: 350px;
-    margin: auto;
-    border-radius: 10px;
-}
-input, select {
-    width: 90%;
-    padding: 8px;
-    margin: 5px;
-}
-button {
-    padding: 10px;
-    width: 95%;
-    margin-top: 10px;
-    background: #00c853;
-    border: none;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-}
-img {
-    margin-top: 10px;
-    max-width: 150px;
-}
+body { font-family: Arial; background:#121212; color:white; text-align:center; }
+.container { margin-top:30px; }
+.card { background:#1e1e1e; padding:20px; width:380px; margin:auto; border-radius:10px; }
+input, select { width:90%; padding:8px; margin:5px; }
+button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
+img { margin-top:10px; max-width:150px; }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>TheoGen PRO</h1>
-    <div class="card">
-        <input type="text" id="buildingName" placeholder="Nombre del edificio">
+<h1>TheoGen PRO</h1>
+<div class="card">
 
-        <select id="size">
-            <option value="1x1">1x1</option>
-            <option value="2x2">2x2</option>
-            <option value="3x3">3x3</option>
-        </select>
+<input type="text" id="buildingName" placeholder="Nombre del edificio">
 
-        <input type="number" id="floors" placeholder="Número de pisos" min="1">
+<select id="type">
+<option value="residential">Residencial</option>
+<option value="commercial">Comercial</option>
+<option value="industrial">Industrial</option>
+</select>
 
-        <input type="file" id="imageInput" accept="image/*">
-        <img id="preview">
+<select id="size">
+<option value="1">1x1</option>
+<option value="2">2x2</option>
+<option value="3">3x3</option>
+</select>
 
-        <button onclick="generatePlugin()">Generar Plugin</button>
-    </div>
+<input type="number" id="floors" placeholder="Número de pisos" min="1">
+
+<input type="file" id="imageInput" accept="image/*">
+<img id="preview">
+
+<button onclick="generatePlugin()">Generar Plugin</button>
+
+</div>
 </div>
 
 <script>
 let uploadedImage = null;
 
-document.getElementById("imageInput").addEventListener("change", function(event) {
-    const file = event.target.files[0];
-    if (file) {
-        uploadedImage = file;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById("preview").src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
+document.getElementById("imageInput").addEventListener("change", function(event){
+const file = event.target.files[0];
+if(file){
+uploadedImage = file;
+const reader = new FileReader();
+reader.onload = e => document.getElementById("preview").src = e.target.result;
+reader.readAsDataURL(file);
+}
 });
 
-async function generatePlugin() {
+function getImageSize(multiplier){
+return 128 * multiplier;
+}
 
-    const name = document.getElementById("buildingName").value;
-    const size = document.getElementById("size").value;
-    const floors = document.getElementById("floors").value;
+async function resizeImage(file, multiplier){
+return new Promise(resolve=>{
+const img = new Image();
+img.onload = function(){
+const canvas = document.createElement("canvas");
+const size = getImageSize(multiplier);
+canvas.width = size;
+canvas.height = size;
+const ctx = canvas.getContext("2d");
+ctx.drawImage(img, 0, 0, size, size);
+canvas.toBlob(blob => resolve(blob), "image/png");
+};
+img.src = URL.createObjectURL(file);
+});
+}
 
-    if (!name || !uploadedImage) {
-        alert("Completa los datos y sube una imagen.");
-        return;
-    }
+async function generatePlugin(){
 
-    const zip = new JSZip();
-    const folder = zip.folder(name);
+const name = document.getElementById("buildingName").value;
+const type = document.getElementById("type").value;
+const sizeMultiplier = parseInt(document.getElementById("size").value);
+const floors = parseInt(document.getElementById("floors").value);
 
-   const pluginData = {
-    "meta": {
-        "id": name.toLowerCase().replace(/\s+/g, "_"),
-        "title": name,
-        "description": "Edificio generado con TheoGen PRO",
-        "author": "TheoGen User",
-        "version": "1.0"
-    },
-    "building": {
-        "size": size,
-        "floors": floors,
-        "type": "residential",
-        "price": floors * 100,
-        "level": Math.min(floors, 5)
-    }
+if(!name || !uploadedImage){
+alert("Completa los datos y sube una imagen.");
+return;
+}
+
+const zip = new JSZip();
+const folder = zip.folder(name);
+
+const resizedImage = await resizeImage(uploadedImage, sizeMultiplier);
+
+const pluginData = {
+meta:{
+id: name.toLowerCase().replace(/\s+/g,"_"),
+title: name,
+author: "TheoGen User",
+version: "1.0"
+},
+building:{
+type:type,
+size:sizeMultiplier+"x"+sizeMultiplier,
+floors:floors,
+price:floors*120,
+level:Math.min(floors,5)
+}
 };
 
-    folder.file("plugin.json", JSON.stringify(pluginData, null, 4));
+folder.file("plugin.json", JSON.stringify(pluginData,null,4));
+folder.file("image.png", resizedImage);
 
-    const imgData = await uploadedImage.arrayBuffer();
-    folder.file("image.png", imgData);
-
-    zip.generateAsync({type:"blob"}).then(function(content) {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(content);
-        link.download = name + ".zip";
-        link.click();
-    });
+zip.generateAsync({type:"blob"}).then(content=>{
+const link=document.createElement("a");
+link.href=URL.createObjectURL(content);
+link.download=name+".zip";
+link.click();
+});
 }
 </script>
 
