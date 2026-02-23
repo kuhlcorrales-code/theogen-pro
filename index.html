@@ -81,8 +81,8 @@ async function generatePlugin(){
 const name = document.getElementById("buildingName").value;
 const type = document.getElementById("type").value;
 const sizeMultiplier = parseInt(document.getElementById("size").value);
-const floors = parseInt(document.getElementById("floors").value);
-
+let floors = parseInt(document.getElementById("floors").value);
+if (isNaN(floors) || floors < 1) floors = 1;
 if(!name || !uploadedImage){
 alert("Completa los datos y sube una imagen.");
 return;
@@ -104,8 +104,8 @@ building:{
 type:type,
 size:sizeMultiplier+"x"+sizeMultiplier,
 floors:floors,
-price:floors*120,
-level:Math.min(floors,5)
+price: floors * 150 * sizeMultiplier,
+level: Math.min(Math.ceil(floors / 2), 5)
 }
 };
 
