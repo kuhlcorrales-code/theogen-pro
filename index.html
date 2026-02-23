@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 4.0</title>
+<title>TheoGen PRO 4.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
 .container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:450px; margin:auto; border-radius:10px; }
+.card { background:#1e1e1e; padding:20px; width:480px; margin:auto; border-radius:10px; }
 input, select { width:90%; padding:8px; margin:5px; }
 button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
 .building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:15px; }
@@ -20,7 +20,7 @@ button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:no
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 4.0</h1>
+<h1>TheoGen PRO 4.2</h1>
 <div class="card">
 
 <input type="text" id="buildingName" placeholder="Nombre del edificio">
@@ -31,14 +31,11 @@ button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:no
 <option value="industrial">Industrial</option>
 </select>
 
-<select id="size">
-<option value="1">1x1</option>
-<option value="2">2x2</option>
-<option value="3">3x3</option>
-</select>
+<input type="number" id="size" placeholder="Tamaño (1-10)" min="1" max="10" value="1">
 
 <input type="number" id="floors" placeholder="Número de pisos" min="1">
 <input type="number" id="capacity" placeholder="Capacidad (automática)" readonly>
+
 <input type="color" id="color" value="#ff0000">
 <input type="number" id="basePrice" placeholder="Precio base por piso" value="150" min="1">
 <input type="number" id="maxLevel" placeholder="Nivel máximo" value="5" min="1" max="5">
@@ -56,12 +53,10 @@ button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:no
 <script>
 let uploadedImages = [];
 
-// Limpiar nombre inválido
 function sanitizeFileName(name){
     return name.replace(/[^a-z0-9_\- ]/gi, "").trim();
 }
 
-// Actualizar capacidad
 function updateCapacity(){
     const type = document.getElementById("type").value;
     const sizeMultiplier = parseInt(document.getElementById("size").value);
@@ -77,12 +72,10 @@ function updateCapacity(){
     document.getElementById("capacity").value = capacity;
 }
 
-// Tamaño de imagen
 function getImageSize(multiplier){
     return 128 * multiplier;
 }
 
-// Redimensionar imagen
 async function resizeImage(file, multiplier){
     return new Promise(resolve=>{
         const img = new Image();
@@ -99,7 +92,6 @@ async function resizeImage(file, multiplier){
     });
 }
 
-// Generar mini mapa
 function generateMiniMap(size){
     const map = document.createElement("div");
     map.className = "mini-map";
@@ -113,7 +105,6 @@ function generateMiniMap(size){
     return map;
 }
 
-// Vista previa avanzada
 async function previewImages(){
     const container = document.getElementById("previewContainer");
     container.innerHTML = "";
@@ -147,19 +138,16 @@ async function previewImages(){
     }
 }
 
-// Manejo de archivos
 document.getElementById("imageInput").addEventListener("change", function(event){
     uploadedImages = Array.from(event.target.files);
     updateCapacity();
     previewImages();
 });
 
-// Eventos para actualizar preview
 ["type","size","floors","color","basePrice","maxLevel","incomeBonus"].forEach(id=>{
     document.getElementById(id).addEventListener("input", ()=>{ updateCapacity(); previewImages(); });
 });
 
-// Generar plugin
 async function generatePlugin(){
     const name = document.getElementById("buildingName").value;
     const type = document.getElementById("type").value;
@@ -185,6 +173,34 @@ async function generatePlugin(){
         const capacity = floors * (sizeMultiplier*sizeMultiplier) * (type==="residential"?8:type==="commercial"?5:4);
         const price = floors * sizeMultiplier * basePrice;
 
+        // Canvas para preview
+        const canvas = document.createElement("canvas");
+        canvas.width = 150;
+        canvas.height = 200;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#2a2a2a";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        const imgObj = await new Promise(res=>{
+            const img = new Image();
+            img.onload = ()=>res(img);
+            img.src = URL.createObjectURL(resizedImage);
+        });
+        ctx.drawImage(imgObj,25,10,100,100);
+
+        ctx.fillStyle = color;
+        ctx.font = "bold 12px Arial";
+        ctx.fillText(name,10,130);
+        ctx.fillStyle = "white";
+        ctx.font = "12px Arial";
+        ctx.fillText(`Tipo: ${type}`,10,145);
+        ctx.fillText(`Pisos: ${floors}`,10,160);
+        ctx.fillText(`Capacidad: ${capacity}`,10,175);
+        ctx.fillText(`Precio: $${price}`,10,190);
+
+        const previewBlob = await new Promise(res=>canvas.toBlob(res,"image/png"));
+
+        // JSON completo
         const buildingData = {
             meta:{
                 id: sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_") + (i>0?"_"+i:""),
@@ -201,11 +217,13 @@ async function generatePlugin(){
                 capacity: capacity,
                 color: color,
                 incomeBonus: incomeBonus
-            }
+            },
+            previewImage: `preview_${i+1}.png`
         };
 
         folder.file(`plugin_${i+1}.json`, JSON.stringify(buildingData,null,4));
         folder.file(`image_${i+1}.png`, resizedImage);
+        folder.file(`preview_${i+1}.png`, previewBlob);
     }
 
     zip.generateAsync({type:"blob"}).then(content=>{
