@@ -34,7 +34,7 @@ img { margin-top:10px; max-width:150px; }
 </select>
 
 <input type="number" id="floors" placeholder="Número de pisos" min="1">
-
+<input type="number" id="capacity" placeholder="Capacidad (automática)" readonly>
 <input type="file" id="imageInput" accept="image/*">
 <img id="preview">
 
@@ -61,6 +61,15 @@ return 128 * multiplier;
 }
 
 async function resizeImage(file, multiplier){
+  function calculateCapacity(type, floors, sizeMultiplier){
+let base = 0;
+
+if(type === "residential") base = 8;
+if(type === "commercial") base = 5;
+if(type === "industrial") base = 4;
+
+return floors * (sizeMultiplier * sizeMultiplier) * base;
+}
 return new Promise(resolve=>{
 const img = new Image();
 img.onload = function(){
