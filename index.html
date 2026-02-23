@@ -93,13 +93,22 @@ async function generatePlugin() {
     const zip = new JSZip();
     const folder = zip.folder(name);
 
-    const pluginData = {
-        id: name.toLowerCase().replace(/\s+/g, "_"),
-        title: name,
-        size: size,
-        floors: floors,
-        type: "residential"
-    };
+   const pluginData = {
+    "meta": {
+        "id": name.toLowerCase().replace(/\s+/g, "_"),
+        "title": name,
+        "description": "Edificio generado con TheoGen PRO",
+        "author": "TheoGen User",
+        "version": "1.0"
+    },
+    "building": {
+        "size": size,
+        "floors": floors,
+        "type": "residential",
+        "price": floors * 100,
+        "level": Math.min(floors, 5)
+    }
+};
 
     folder.file("plugin.json", JSON.stringify(pluginData, null, 4));
 
