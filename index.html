@@ -2,43 +2,66 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO Online</title>
+<title>TheoGen PRO</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    background: #1e1e1e;
+    font-family: Arial;
+    background: #121212;
     color: white;
+    text-align: center;
 }
 .container {
-    margin-top: 40px;
+    margin-top: 30px;
+}
+.card {
+    background: #1e1e1e;
+    padding: 20px;
+    width: 350px;
+    margin: auto;
+    border-radius: 10px;
+}
+input, select {
+    width: 90%;
+    padding: 8px;
+    margin: 5px;
 }
 button {
-    padding: 10px 20px;
-    font-size: 16px;
+    padding: 10px;
+    width: 95%;
     margin-top: 10px;
+    background: #00c853;
+    border: none;
+    color: white;
+    font-weight: bold;
     cursor: pointer;
 }
-input {
-    margin-top: 10px;
-}
 img {
-    margin-top: 20px;
-    max-width: 200px;
+    margin-top: 10px;
+    max-width: 150px;
 }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>TheoGen PRO Online</h1>
-    <p>Convierte tu imagen en plugin fácilmente</p>
+    <h1>TheoGen PRO</h1>
+    <div class="card">
+        <input type="text" id="buildingName" placeholder="Nombre del edificio">
 
-    <input type="file" id="imageInput" accept="image/*"><br>
-    <img id="preview" src=""><br>
+        <select id="size">
+            <option value="1x1">1x1</option>
+            <option value="2x2">2x2</option>
+            <option value="3x3">3x3</option>
+        </select>
 
-    <button onclick="generatePlugin()">Generar Plugin</button>
+        <input type="number" id="floors" placeholder="Número de pisos" min="1">
+
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="preview">
+
+        <button onclick="generatePlugin()">Generar Plugin</button>
+    </div>
 </div>
 
 <script>
@@ -57,21 +80,36 @@ document.getElementById("imageInput").addEventListener("change", function(event)
 });
 
 async function generatePlugin() {
-    if (!uploadedImage) {
-        alert("Primero sube una imagen.");
+
+    const name = document.getElementById("buildingName").value;
+    const size = document.getElementById("size").value;
+    const floors = document.getElementById("floors").value;
+
+    if (!name || !uploadedImage) {
+        alert("Completa los datos y sube una imagen.");
         return;
     }
 
     const zip = new JSZip();
-    zip.file("plugin.txt", "Plugin generado con TheoGen PRO Online");
+    const folder = zip.folder(name);
+
+    const pluginData = {
+        id: name.toLowerCase().replace(/\s+/g, "_"),
+        title: name,
+        size: size,
+        floors: floors,
+        type: "residential"
+    };
+
+    folder.file("plugin.json", JSON.stringify(pluginData, null, 4));
 
     const imgData = await uploadedImage.arrayBuffer();
-    zip.file("image.png", imgData);
+    folder.file("image.png", imgData);
 
     zip.generateAsync({type:"blob"}).then(function(content) {
         const link = document.createElement("a");
         link.href = URL.createObjectURL(content);
-        link.download = "TheoGenPlugin.zip";
+        link.download = name + ".zip";
         link.click();
     });
 }
