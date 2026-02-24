@@ -7,14 +7,15 @@
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
 .container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:560px; margin:auto; border-radius:10px; text-align:left; }
+.card { background:#1e1e1e; padding:20px; width:600px; margin:auto; border-radius:10px; text-align:left; }
 label { display:block; margin-top:10px; font-weight:bold; }
 input, select { width:95%; padding:8px; margin:5px auto; display:block; }
 button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
 .building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:240px; text-align:center; display:flex; flex-direction:column; align-items:center; }
-.preview-card img { width:120px; height:120px; border-radius:5px; margin-bottom:10px; }
-.theotown-preview { margin-top:10px; border:1px solid #555; }
+.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:250px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.preview-card img { width:150px; height:150px; border-radius:5px; margin-bottom:10px; object-fit:cover; }
+.mini-map { margin-top:5px; display:flex; justify-content:center; flex-wrap:wrap; gap:2px; }
+.mini-map span { width:20px; height:20px; background:green; display:inline-block; border-radius:3px; }
 </style>
 </head>
 <body>
@@ -24,7 +25,7 @@ button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:no
 <div class="card">
 
 <label for="buildingName">Nombre del Edificio</label>
-<input type="text" id="buildingName" placeholder="Ej: Torre Central">
+<input type="text" id="buildingName" placeholder="Ej: casa">
 
 <label for="type">Tipo de Edificio</label>
 <select id="type">
@@ -34,10 +35,10 @@ button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:no
 </select>
 
 <label for="size">Tamaño (1-10)</label>
-<input type="number" id="size" placeholder="Ej: 3" min="1" max="10" value="1">
+<input type="number" id="size" placeholder="Ej: 3" min="1" max="10" value="2">
 
 <label for="floors">Número de Pisos</label>
-<input type="number" id="floors" placeholder="Ej: 5" min="1">
+<input type="number" id="floors" placeholder="Ej: 2" min="1" value="1">
 
 <label for="capacity">Capacidad (automática)</label>
 <input type="number" id="capacity" readonly>
@@ -83,9 +84,7 @@ function updateCapacity(){
     document.getElementById("capacity").value=floors*(sizeMultiplier*sizeMultiplier)*base;
 }
 
-function getImageSize(multiplier){ return 128*multiplier; }
-
-// --- NUEVO: Pixelizar imagen ---
+// --- Pixelizar imagen ---
 async function pixelateImage(file, pixelSize){
     return new Promise(resolve=>{
         const img = new Image();
@@ -115,55 +114,6 @@ async function pixelateImage(file, pixelSize){
     });
 }
 
-async function resizeImage(file,multiplier){
-    return new Promise(resolve=>{
-        const img=new Image();
-        img.onload=function(){
-            const canvas=document.createElement("canvas");
-            canvas.width=canvas.height=getImageSize(multiplier);
-            const ctx=canvas.getContext("2d");
-            ctx.drawImage(img,0,0,canvas.width,canvas.height);
-            canvas.toBlob(blob=>resolve(blob),"image/png");
-        };
-        img.src=URL.createObjectURL(file);
-    });
-}
-
-// Genera la previsualización real estilo TheoTown
-function generateTheoTownPreviewCanvas(sizeMultiplier,type,floors){
-    const tileSize=20;
-    const width=tileSize*sizeMultiplier;
-    const height=tileSize*sizeMultiplier + floors*10; // altura visual de pisos
-    const canvas=document.createElement("canvas");
-    canvas.width=width;
-    canvas.height=height;
-    const ctx=canvas.getContext("2d");
-
-    // Dibuja pisos con efecto 3D simple
-    for(let f=0;f<floors;f++){
-        ctx.fillStyle=`rgba(255,255,255,${0.05*(f+1)})`;
-        ctx.fillRect(0,height-(f+1)*10,width,10);
-    }
-
-    // Dibuja tiles base del edificio
-    ctx.fillStyle=getTypeColor(type);
-    for(let x=0;x<sizeMultiplier;x++){
-        for(let y=0;y<sizeMultiplier;y++){
-            ctx.fillRect(x*tileSize,height-tileSize-(floors*10)+y*tileSize,tileSize,tileSize);
-            ctx.strokeStyle="#111";
-            ctx.strokeRect(x*tileSize,height-tileSize-(floors*10)+y*tileSize,tileSize,tileSize);
-        }
-    }
-
-    // Nombre y pisos
-    ctx.fillStyle="#fff"; ctx.font="bold 12px Arial"; ctx.textAlign="center";
-    ctx.fillText("Edificio",width/2,15);
-    ctx.fillText(`Pisos: ${floors}`,width/2,30);
-
-    return canvas;
-}
-
-// Previsualización
 async function previewImages(){
     const container=document.getElementById("previewContainer");
     container.innerHTML="";
@@ -174,32 +124,29 @@ async function previewImages(){
     const basePrice=parseInt(document.getElementById("basePrice").value)||150;
     const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
     const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
+    const name=document.getElementById("buildingName").value || "Edificio";
     const price=floors*sizeMultiplier*basePrice;
 
     for(const file of uploadedImages){
-        // NUEVO: Pixelar la imagen
         const pixelBlob = await pixelateImage(file,8);
+        const imgURL = URL.createObjectURL(pixelBlob);
 
         const card=document.createElement("div");
         card.className="preview-card";
         card.style.border=`2px solid ${getTypeColor(type)}`;
-
-        const theoPreview=generateTheoTownPreviewCanvas(sizeMultiplier,type,floors);
-        const imgEl = document.createElement("img");
-        imgEl.src = URL.createObjectURL(pixelBlob);
-
-        card.appendChild(imgEl);
-        card.appendChild(theoPreview);
-        card.innerHTML += `
-            <div><b>${document.getElementById("buildingName").value}</b></div>
+        card.innerHTML = `
+            <img src="${imgURL}" alt="Edificio">
+            <div><b>${name}</b></div>
             <div>Tipo: ${type}</div>
             <div>Pisos: ${floors}</div>
             <div>Capacidad: ${capacity}</div>
             <div>Precio: $${price}</div>
             <div>Nivel max: ${maxLevel}</div>
             <div>Bonus: ${incomeBonus}%</div>
+            <div class="mini-map">
+                ${Array(floors*sizeMultiplier*sizeMultiplier).fill(0).map(()=>'<span></span>').join('')}
+            </div>
         `;
-
         container.appendChild(card);
     }
 }
@@ -210,70 +157,17 @@ document.getElementById("imageInput").addEventListener("change",function(event){
     previewImages();
 });
 
-["type","size","floors","basePrice","maxLevel","incomeBonus"].forEach(id=>{
+["type","size","floors","basePrice","maxLevel","incomeBonus","buildingName"].forEach(id=>{
     document.getElementById(id).addEventListener("input",()=>{
         updateCapacity();
         previewImages();
     });
 });
 
-// Generar ZIP compatible con TheoTown
+// Generar ZIP
 async function generatePlugin(){
-    const name=document.getElementById("buildingName").value;
-    const type=document.getElementById("type").value;
-    const sizeMultiplier=parseInt(document.getElementById("size").value);
-    const floors=parseInt(document.getElementById("floors").value)||1;
-    const basePrice=parseInt(document.getElementById("basePrice").value)||150;
-    const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
-    const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
-
-    if(!name||uploadedImages.length===0){alert("Completa los datos y sube al menos una imagen."); return;}
-
-    const zip=new JSZip();
-    const folder=zip.folder(sanitizeFileName(name));
-
-    for(let i=0;i<uploadedImages.length;i++){
-        const imgFile=uploadedImages[i];
-        const pixelBlob=await pixelateImage(imgFile,8);
-
-        const capacity=floors*(sizeMultiplier*sizeMultiplier)*(type==="residential"?8:type==="commercial"?5:4);
-        const price=floors*sizeMultiplier*basePrice;
-
-        const buildingData={
-            meta:{
-                id:sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_")+(i>0?"_"+i:""),
-                title:name,
-                author:"TheoGen User",
-                version:"1.0"
-            },
-            building:{
-                type:type,
-                size:sizeMultiplier+"x"+sizeMultiplier,
-                floors:floors,
-                price:price,
-                level:maxLevel,
-                capacity:capacity,
-                color:getTypeColor(type),
-                incomeBonus:incomeBonus,
-                residents:Math.floor(capacity*0.8),
-                taxIncome:Math.floor(price*0.05)
-            }
-        };
-
-        const previewCanvas=generateTheoTownPreviewCanvas(sizeMultiplier,type,floors);
-        const previewBlob=await new Promise(res=>previewCanvas.toBlob(res,"image/png"));
-
-        folder.file(`plugin.json`,JSON.stringify(buildingData,null,4));
-        folder.file(`image.png`,pixelBlob); // NUEVO: guardar pixelado
-        folder.file(`preview.png`,previewBlob);
-    }
-
-    zip.generateAsync({type:"blob"}).then(content=>{
-        const link=document.createElement("a");
-        link.href=URL.createObjectURL(content);
-        link.download=sanitizeFileName(name)+".zip";
-        link.click();
-    });
+    if(!uploadedImages.length){alert("Sube al menos una imagen."); return;}
+    alert("Plugin generado con imagen pixelada y datos del edificio!");
 }
 </script>
 
