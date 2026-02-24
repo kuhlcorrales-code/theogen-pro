@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 5.6b - TheoTown v2.2</title>
+<title>TheoGen PRO 5.6b - TheoTown Plug & Play</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
@@ -23,7 +23,7 @@ button:disabled { background:#555; cursor:not-allowed; }
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 5.6b - TheoTown v2.2</h1>
+<h1>TheoGen PRO 5.6b - TheoTown Plug & Play</h1>
 <div class="card">
 
 <label for="buildingName">Nombre del Edificio</label>
@@ -90,7 +90,7 @@ function updateCapacity(){
     renderFootprint();
 }
 
-// --- Pixelizar imagen ---
+// Pixelizar imagen
 async function pixelateImage(file, pixelSize){
     return new Promise(resolve=>{
         const img = new Image();
@@ -100,18 +100,15 @@ async function pixelateImage(file, pixelSize){
             canvas.height = img.height;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img,0,0);
-
             const w = Math.max(Math.floor(img.width / pixelSize),1);
             const h = Math.max(Math.floor(img.height / pixelSize),1);
             const temp = document.createElement("canvas");
             temp.width = w; temp.height = h;
             const tctx = temp.getContext("2d");
             tctx.drawImage(canvas,0,0,w,h);
-
             ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0,0,canvas.width,canvas.height);
             ctx.drawImage(temp,0,0,canvas.width,canvas.height);
-
             canvas.toBlob(blob=>{
                 resolve(blob);
                 URL.revokeObjectURL(img.src);
@@ -170,7 +167,7 @@ async function createMiniMapPNG(footprint, size){
     return new Promise(resolve=>canvas.toBlob(b=>resolve(b),"image/png"));
 }
 
-// --- Render footprint editable ---
+// Render footprint editable
 function renderFootprint(){
     const container = document.getElementById("footprintContainer");
     const size = Math.max(parseInt(document.getElementById("size").value)||1,1);
@@ -190,7 +187,7 @@ function renderFootprint(){
     container.appendChild(grid);
 }
 
-// --- Preview ---
+// Preview
 async function previewImages(){
     const container=document.getElementById("previewContainer");
     container.innerHTML="";
@@ -208,7 +205,6 @@ async function previewImages(){
         const pixelBlob = await pixelateImage(file,8);
         const spriteBlob = await createSpriteLevel(pixelBlob);
         const imgURL = URL.createObjectURL(spriteBlob);
-
         const card=document.createElement("div");
         card.className="preview-card";
         card.style.border=`2px solid ${getTypeColor(type)}`;
@@ -224,7 +220,6 @@ async function previewImages(){
         `;
         container.appendChild(card);
     }
-
     document.getElementById("generateBtn").disabled = uploadedImages.length === 0;
 }
 
@@ -241,10 +236,9 @@ document.getElementById("imageInput").addEventListener("change",function(e){
     });
 });
 
-// --- Generar ZIP TheoTown ---
+// Generar ZIP Plug & Play para TheoTown
 async function generatePlugin(){
     if(!uploadedImages.length){ alert("Sube al menos una imagen."); return; }
-
     const zip = new JSZip();
     const dataFolder = zip.folder("building_data");
     const config = {
