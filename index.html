@@ -2,26 +2,62 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 5.6b</title>
+<title>TheoGen PRO 5.6c</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
 .container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:600px; margin:auto; border-radius:10px; text-align:left; }
+.card { background:#1e1e1e; padding:20px; width:650px; margin:auto; border-radius:10px; text-align:left; }
 label { display:block; margin-top:10px; font-weight:bold; }
 input, select { width:95%; padding:8px; margin:5px auto; display:block; }
 button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
+
 .building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:250px; text-align:center; display:flex; flex-direction:column; align-items:center; }
-.preview-card img { width:150px; height:150px; border-radius:5px; margin-bottom:10px; object-fit:cover; }
+
+.preview-card {
+    background:#2a2a2a;
+    padding:10px;
+    border-radius:8px;
+    width:260px;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    perspective:800px;
+}
+
+.building-3d {
+    width:120px;
+    height:120px;
+    transform-style: preserve-3d;
+    margin-bottom:10px;
+    transform: rotateX(25deg) rotateY(-25deg); /* efecto isométrico */
+    transition: transform 0.3s;
+}
+
+.building-3d:hover {
+    transform: rotateX(25deg) rotateY(-25deg) rotateZ(10deg); /* ligero efecto al pasar el mouse */
+}
+
+.floor {
+    width:100%;
+    height:22px;
+    margin-bottom:2px;
+    border-radius:3px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: 0px 2px 5px rgba(0,0,0,0.5); /* sombreado dinámico */
+}
+
 .mini-map { margin-top:5px; display:flex; justify-content:center; flex-wrap:wrap; gap:2px; }
-.mini-map span { width:20px; height:20px; background:green; display:inline-block; border-radius:3px; }
+.mini-map span { width:20px; height:20px; display:inline-block; border-radius:3px; background:green; }
 </style>
 </head>
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 5.6b</h1>
+<h1>TheoGen PRO 5.6c</h1>
 <div class="card">
 
 <label for="buildingName">Nombre del Edificio</label>
@@ -65,11 +101,11 @@ button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:no
 <script>
 let uploadedImages = [];
 
-function getTypeColor(type){
-    if(type==="residential") return "#4CAF50";
-    if(type==="commercial") return "#2196F3";
-    if(type==="industrial") return "#FF9800";
-    return "#fff";
+function getTypeGradient(type){
+    if(type==="residential") return "linear-gradient(to bottom, #76c893, #4CAF50)";
+    if(type==="commercial") return "linear-gradient(to bottom, #64b5f6, #2196F3)";
+    if(type==="industrial") return "linear-gradient(to bottom, #ffb74d, #FF9800)";
+    return "linear-gradient(to bottom, #aaa, #777)";
 }
 
 function sanitizeFileName(name){
@@ -84,7 +120,6 @@ function updateCapacity(){
     document.getElementById("capacity").value=floors*(sizeMultiplier*sizeMultiplier)*base;
 }
 
-// --- Pixelizar imagen ---
 async function pixelateImage(file, pixelSize){
     return new Promise(resolve=>{
         const img = new Image();
@@ -95,7 +130,6 @@ async function pixelateImage(file, pixelSize){
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img,0,0);
 
-            // Reducir tamaño
             const w = Math.floor(img.width / pixelSize);
             const h = Math.floor(img.height / pixelSize);
             const temp = document.createElement("canvas");
@@ -103,7 +137,6 @@ async function pixelateImage(file, pixelSize){
             const tctx = temp.getContext("2d");
             tctx.drawImage(canvas,0,0,w,h);
 
-            // Escalar otra vez
             ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0,0,canvas.width,canvas.height);
             ctx.drawImage(temp,0,0,canvas.width,canvas.height);
@@ -112,6 +145,22 @@ async function pixelateImage(file, pixelSize){
         };
         img.src = URL.createObjectURL(file);
     });
+}
+
+async function create3DBuildingWithTexture(floors, type, imgFile){
+    const container = document.createElement("div");
+    container.className="building-3d";
+    const imgURL = imgFile ? URL.createObjectURL(imgFile) : null;
+
+    for(let i=0; i<floors; i++){
+        const floor = document.createElement("div");
+        floor.className="floor";
+        floor.style.background = imgURL ? `url(${imgURL})` : getTypeGradient(type);
+        floor.style.transform = `translateZ(${i*24}px)`;
+        floor.style.boxShadow = `0 ${i*2}px ${5+i}px rgba(0,0,0,0.5)`;
+        container.appendChild(floor);
+    }
+    return container;
 }
 
 async function previewImages(){
@@ -129,13 +178,14 @@ async function previewImages(){
 
     for(const file of uploadedImages){
         const pixelBlob = await pixelateImage(file,8);
-        const imgURL = URL.createObjectURL(pixelBlob);
 
         const card=document.createElement("div");
         card.className="preview-card";
-        card.style.border=`2px solid ${getTypeColor(type)}`;
-        card.innerHTML = `
-            <img src="${imgURL}" alt="Edificio">
+
+        const building3D = await create3DBuildingWithTexture(floors, type, pixelBlob);
+        card.appendChild(building3D);
+
+        card.innerHTML += `
             <div><b>${name}</b></div>
             <div>Tipo: ${type}</div>
             <div>Pisos: ${floors}</div>
@@ -164,7 +214,6 @@ document.getElementById("imageInput").addEventListener("change",function(event){
     });
 });
 
-// Generar ZIP
 async function generatePlugin(){
     if(!uploadedImages.length){alert("Sube al menos una imagen."); return;}
     alert("Plugin generado con imagen pixelada y datos del edificio!");
