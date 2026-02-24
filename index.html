@@ -2,27 +2,28 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 5.6b Avanzado</title>
+<title>TheoGen PRO 5.6b - TheoTown v2.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
 .container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:600px; margin:auto; border-radius:10px; text-align:left; }
+.card { background:#1e1e1e; padding:20px; width:650px; margin:auto; border-radius:10px; text-align:left; }
 label { display:block; margin-top:10px; font-weight:bold; }
 input, select { width:95%; padding:8px; margin:5px auto; display:block; }
 button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
 button:disabled { background:#555; cursor:not-allowed; }
 .building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:250px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:300px; text-align:center; display:flex; flex-direction:column; align-items:center; }
 .preview-card img { width:150px; height:150px; border-radius:5px; margin-bottom:10px; object-fit:cover; }
-.mini-map { margin-top:5px; display:flex; justify-content:center; flex-wrap:wrap; gap:2px; }
-.mini-map span { width:20px; height:20px; background:green; display:inline-block; border-radius:3px; }
+.footprint { margin-top:10px; display:grid; gap:2px; justify-content:center; }
+.footprint div { width:20px; height:20px; background:green; border-radius:3px; cursor:pointer; }
+.footprint div.inactive { background:#444; }
 </style>
 </head>
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 5.6b Avanzado</h1>
+<h1>TheoGen PRO 5.6b - TheoTown v2.2</h1>
 <div class="card">
 
 <label for="buildingName">Nombre del Edificio</label>
@@ -56,15 +57,17 @@ button:disabled { background:#555; cursor:not-allowed; }
 <label for="imageInput">Imagen del edificio</label>
 <input type="file" id="imageInput" accept="image/*" multiple>
 
-<div class="building-preview" id="previewContainer"></div>
+<div id="previewContainer" class="building-preview"></div>
+<div id="footprintContainer"></div>
 
-<button id="generateBtn" onclick="generatePlugin()" disabled>Generar Plugin Avanzado</button>
+<button id="generateBtn" onclick="generatePlugin()" disabled>Generar ZIP TheoTown</button>
 
 </div>
 </div>
 
 <script>
 let uploadedImages = [];
+let footprint = [];
 
 function getTypeColor(type){
     if(type==="residential") return "#4CAF50";
@@ -83,6 +86,8 @@ function updateCapacity(){
     const floors = Math.max(parseInt(document.getElementById("floors").value)||1,1);
     const base = type==="residential"?8:type==="commercial"?5:4;
     document.getElementById("capacity").value = floors*(sizeMultiplier*sizeMultiplier)*base;
+    footprint = Array(sizeMultiplier*sizeMultiplier).fill(true);
+    renderFootprint();
 }
 
 // --- Pixelizar imagen ---
@@ -116,8 +121,23 @@ async function pixelateImage(file, pixelSize){
     });
 }
 
-// --- Crear miniatura ---
-async function createThumbnail(file, size=64){
+async function createSpriteLevel(blob){
+    return new Promise(resolve=>{
+        const img = new Image();
+        img.onload = function(){
+            const canvas = document.createElement("canvas");
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img,0,0,64,64);
+            canvas.toBlob(b=>resolve(b),"image/png");
+            URL.revokeObjectURL(img.src);
+        };
+        img.src = URL.createObjectURL(blob);
+    });
+}
+
+async function createThumbnail(blob,size=64){
     return new Promise(resolve=>{
         const img = new Image();
         img.onload = function(){
@@ -126,32 +146,48 @@ async function createThumbnail(file, size=64){
             canvas.height = size;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img,0,0,size,size);
-            canvas.toBlob(blob=>resolve(blob),"image/png");
+            canvas.toBlob(b=>resolve(b),"image/png");
             URL.revokeObjectURL(img.src);
         };
-        img.src = URL.createObjectURL(file);
+        img.src = URL.createObjectURL(blob);
     });
 }
 
-// --- Crear mini-map PNG ---
-async function createMiniMapPNG(capacity, sizeMultiplier){
+async function createMiniMapPNG(footprint, size){
     const canvas = document.createElement("canvas");
-    const total = capacity;
-    const cols = sizeMultiplier;
-    const rows = Math.ceil(total/cols);
-    const cellSize = 20;
+    const cols = size;
+    const rows = Math.ceil(footprint.length/cols);
+    const cellSize = 8;
     canvas.width = cols*cellSize;
     canvas.height = rows*cellSize;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "green";
-    for(let i=0;i<total;i++){
+    footprint.forEach((v,i)=>{
         const x = (i%cols)*cellSize;
         const y = Math.floor(i/cols)*cellSize;
+        ctx.fillStyle = v?"green":"#444";
         ctx.fillRect(x,y,cellSize,cellSize);
-    }
-    return new Promise(resolve=>{
-        canvas.toBlob(blob=>resolve(blob),"image/png");
     });
+    return new Promise(resolve=>canvas.toBlob(b=>resolve(b),"image/png"));
+}
+
+// --- Render footprint editable ---
+function renderFootprint(){
+    const container = document.getElementById("footprintContainer");
+    const size = Math.max(parseInt(document.getElementById("size").value)||1,1);
+    container.innerHTML = `<label>Footprint (clic para editar)</label>`;
+    const grid = document.createElement("div");
+    grid.className = "footprint";
+    grid.style.gridTemplateColumns = `repeat(${size},20px)`;
+    footprint.forEach((active,i)=>{
+        const cell = document.createElement("div");
+        if(!active) cell.classList.add("inactive");
+        cell.addEventListener("click",()=>{
+            footprint[i] = !footprint[i];
+            renderFootprint();
+        });
+        grid.appendChild(cell);
+    });
+    container.appendChild(grid);
 }
 
 // --- Preview ---
@@ -170,14 +206,14 @@ async function previewImages(){
 
     for(const file of uploadedImages){
         const pixelBlob = await pixelateImage(file,8);
-        const thumbBlob = await createThumbnail(pixelBlob,64);
-        const imgURL = URL.createObjectURL(pixelBlob);
+        const spriteBlob = await createSpriteLevel(pixelBlob);
+        const imgURL = URL.createObjectURL(spriteBlob);
 
         const card=document.createElement("div");
         card.className="preview-card";
         card.style.border=`2px solid ${getTypeColor(type)}`;
         card.innerHTML = `
-            <img src="${imgURL}" alt="Imagen de ${name}">
+            <img src="${imgURL}" alt="Sprite de ${name}">
             <div><b>${name}</b></div>
             <div>Tipo: ${type}</div>
             <div>Pisos: ${floors}</div>
@@ -185,9 +221,6 @@ async function previewImages(){
             <div>Precio: $${price}</div>
             <div>Nivel max: ${maxLevel}</div>
             <div>Bonus: ${incomeBonus}%</div>
-            <div class="mini-map">
-                ${Array(capacity).fill(0).map(()=>'<span></span>').join('')}
-            </div>
         `;
         container.appendChild(card);
     }
@@ -195,8 +228,8 @@ async function previewImages(){
     document.getElementById("generateBtn").disabled = uploadedImages.length === 0;
 }
 
-document.getElementById("imageInput").addEventListener("change", function(event){
-    uploadedImages = Array.from(event.target.files);
+document.getElementById("imageInput").addEventListener("change",function(e){
+    uploadedImages = Array.from(e.target.files);
     updateCapacity();
     previewImages();
 });
@@ -208,13 +241,12 @@ document.getElementById("imageInput").addEventListener("change", function(event)
     });
 });
 
-// --- Generar ZIP Avanzado ---
+// --- Generar ZIP TheoTown ---
 async function generatePlugin(){
     if(!uploadedImages.length){ alert("Sube al menos una imagen."); return; }
 
     const zip = new JSZip();
     const dataFolder = zip.folder("building_data");
-
     const config = {
         name: document.getElementById("buildingName").value,
         type: document.getElementById("type").value,
@@ -223,28 +255,29 @@ async function generatePlugin(){
         capacity: parseInt(document.getElementById("capacity").value)||0,
         basePrice: parseInt(document.getElementById("basePrice").value)||150,
         maxLevel: parseInt(document.getElementById("maxLevel").value)||5,
-        incomeBonus: parseInt(document.getElementById("incomeBonus").value)||0
+        incomeBonus: parseInt(document.getElementById("incomeBonus").value)||0,
+        footprint
     };
-    dataFolder.file("config.json", JSON.stringify(config,null,2));
+    dataFolder.file("config.json",JSON.stringify(config,null,2));
 
     for(const file of uploadedImages){
         const pixelBlob = await pixelateImage(file,8);
-        const thumbBlob = await createThumbnail(pixelBlob,64);
-        const mapBlob = await createMiniMapPNG(config.capacity, config.size);
+        const spriteBlob = await createSpriteLevel(pixelBlob);
+        const thumbBlob = await createThumbnail(spriteBlob,64);
+        const mapBlob = await createMiniMapPNG(footprint,config.size);
 
         const safeName = sanitizeFileName(file.name);
-        dataFolder.file(safeName, pixelBlob);
-        dataFolder.file("thumb_"+safeName, thumbBlob);
-        dataFolder.file("map_"+safeName, mapBlob);
+        dataFolder.file(`sprite_${safeName}`,spriteBlob);
+        dataFolder.file(`thumb_${safeName}`,thumbBlob);
+        dataFolder.file(`map_${safeName}`,mapBlob);
     }
 
     const content = await zip.generateAsync({type:"blob"});
     const link = document.createElement("a");
     link.href = URL.createObjectURL(content);
-    link.download = `${sanitizeFileName(config.name)}_plugin.zip`;
+    link.download = `${sanitizeFileName(config.name)}_TheoTown.zip`;
     link.click();
 }
 </script>
-
 </body>
 </html>
