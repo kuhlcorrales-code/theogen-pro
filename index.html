@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 5.4</title>
+<title>TheoGen PRO 5.5</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
@@ -20,7 +20,7 @@ button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:no
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 5.4</h1>
+<h1>TheoGen PRO 5.5</h1>
 <div class="card">
 
 <label for="buildingName">Nombre del Edificio</label>
@@ -99,7 +99,6 @@ async function resizeImage(file,multiplier){
     });
 }
 
-// Mini-map del tamaño exacto
 function generateMiniMap(sizeMultiplier,type){
     const tileSize=20;
     const canvas=document.createElement("canvas");
@@ -117,7 +116,6 @@ function generateMiniMap(sizeMultiplier,type){
     return canvas;
 }
 
-// Simulación estilo TheoTown
 function generateTheoTownPreview(sizeMultiplier,type,floors){
     const tileSize=20;
     const width=tileSize*sizeMultiplier;
@@ -134,12 +132,10 @@ function generateTheoTownPreview(sizeMultiplier,type,floors){
             ctx.strokeRect(x*tileSize,floors*5 + y*tileSize,tileSize,tileSize);
         }
     }
-    // Simular altura pisos
     for(let i=0;i<floors;i++){
         ctx.fillStyle="rgba(255,255,255,0.1)";
         ctx.fillRect(0,(floors-i-1)*5,width,height-(floors-i-1)*5);
     }
-    // Nombre y pisos
     ctx.fillStyle="#fff"; ctx.font="12px Arial"; ctx.textAlign="center";
     ctx.fillText("Edificio",width/2,10);
     ctx.fillText(`Pisos: ${floors}`,width/2,25);
@@ -195,7 +191,6 @@ document.getElementById("imageInput").addEventListener("change",function(event){
     });
 });
 
-// Generar ZIP con JSON y previews
 async function generatePlugin(){
     const name=document.getElementById("buildingName").value;
     const type=document.getElementById("type").value;
@@ -215,6 +210,28 @@ async function generatePlugin(){
         const resizedImage=await resizeImage(imgFile,sizeMultiplier);
         const capacity=floors*(sizeMultiplier*sizeMultiplier)*(type==="residential"?8:type==="commercial"?5:4);
         const price=floors*sizeMultiplier*basePrice;
+
+        // TheoTown JSON oficial
+        const buildingData={
+            meta:{
+                id:sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_")+(i>0?"_"+i:""),
+                title:name,
+                author:"TheoGen User",
+                version:"1.0"
+            },
+            building:{
+                type:type,
+                size:sizeMultiplier+"x"+sizeMultiplier,
+                floors:floors,
+                price:price,
+                level:maxLevel,
+                capacity:capacity,
+                color:getTypeColor(type),
+                incomeBonus:incomeBonus,
+                residents:Math.floor(capacity*0.8),
+                taxIncome:Math.floor(price*0.05)
+            }
+        };
 
         const canvas=document.createElement("canvas");
         canvas.width=220; canvas.height=300;
@@ -240,29 +257,10 @@ async function generatePlugin(){
 
         const previewBlob=await new Promise(res=>canvas.toBlob(res,"image/png"));
 
-        const buildingData={
-            meta:{
-                id:sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_")+(i>0?"_"+i:""),
-                title:name,
-                author:"TheoGen User",
-                version:"1.0"
-            },
-            building:{
-                type:type,
-                size:sizeMultiplier+"x"+sizeMultiplier,
-                floors:floors,
-                price:price,
-                level:maxLevel,
-                capacity:capacity,
-                color:getTypeColor(type),
-                incomeBonus:incomeBonus
-            },
-            previewImage:`preview_${i+1}.png`
-        };
-
-        folder.file(`plugin_${i+1}.json`,JSON.stringify(buildingData,null,4));
-        folder.file(`image_${i+1}.png`,resizedImage);
-        folder.file(`preview_${i+1}.png`,previewBlob);
+        // Archivos dentro del ZIP
+        folder.file(`plugin.json`,JSON.stringify(buildingData,null,4));
+        folder.file(`image.png`,resizedImage);
+        folder.file(`preview.png`,previewBlob);
     }
 
     zip.generateAsync({type:"blob"}).then(content=>{
