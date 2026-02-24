@@ -2,15 +2,16 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 5.0</title>
+<title>TheoGen PRO 5.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
 .container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:500px; margin:auto; border-radius:10px; }
-input, select { width:90%; padding:8px; margin:5px; }
-button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
-#cityPreview { margin-top:20px; border:2px solid #888; background:#222; }
+.card { background:#1e1e1e; padding:20px; width:520px; margin:auto; border-radius:10px; text-align:left; }
+label { display:block; margin-top:10px; font-weight:bold; }
+input, select { width:95%; padding:8px; margin:5px auto; display:block; }
+button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
+#cityPreview { margin-top:20px; border:2px solid #888; background:#222; display:block; margin-left:auto; margin-right:auto; }
 .building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:15px; }
 .preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:150px; text-align:center; }
 .preview-card img { width:100px; height:100px; border-radius:5px; margin-bottom:5px; }
@@ -19,24 +20,38 @@ button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:no
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 5.0</h1>
+<h1>TheoGen PRO 5.1</h1>
 <div class="card">
 
-<input type="text" id="buildingName" placeholder="Nombre del edificio">
+<label for="buildingName">Nombre del Edificio</label>
+<input type="text" id="buildingName" placeholder="Ej: Torre Central">
 
+<label for="type">Tipo de Edificio</label>
 <select id="type">
 <option value="residential">Residencial</option>
 <option value="commercial">Comercial</option>
 <option value="industrial">Industrial</option>
 </select>
 
-<input type="number" id="size" placeholder="Tamaño (1-10)" min="1" max="10" value="1">
-<input type="number" id="floors" placeholder="Número de pisos" min="1">
-<input type="number" id="capacity" placeholder="Capacidad (automática)" readonly>
-<input type="number" id="basePrice" placeholder="Precio base por piso" value="150" min="1">
-<input type="number" id="maxLevel" placeholder="Nivel máximo" value="5" min="1" max="5">
-<input type="number" id="incomeBonus" placeholder="Bonus ingresos (%)" value="0" min="0" max="200">
+<label for="size">Tamaño (1-10)</label>
+<input type="number" id="size" placeholder="Ej: 3" min="1" max="10" value="1">
 
+<label for="floors">Número de Pisos</label>
+<input type="number" id="floors" placeholder="Ej: 5" min="1">
+
+<label for="capacity">Capacidad (automática)</label>
+<input type="number" id="capacity" readonly>
+
+<label for="basePrice">Precio base por piso</label>
+<input type="number" id="basePrice" value="150" min="1">
+
+<label for="maxLevel">Nivel máximo</label>
+<input type="number" id="maxLevel" value="5" min="1" max="5">
+
+<label for="incomeBonus">Bonus ingresos (%)</label>
+<input type="number" id="incomeBonus" value="0" min="0" max="200">
+
+<label for="imageInput">Imagen del edificio</label>
 <input type="file" id="imageInput" accept="image/*" multiple>
 
 <canvas id="cityPreview" width="400" height="400"></canvas>
@@ -51,66 +66,59 @@ button { padding:10px; width:95%; margin-top:10px; background:#00c853; border:no
 <script>
 let uploadedImages = [];
 
-// Colores según tipo de edificio (TheoTown)
 function getTypeColor(type){
-    if(type === "residential") return "#4CAF50"; // verde
-    if(type === "commercial") return "#2196F3"; // azul
-    if(type === "industrial") return "#FF9800"; // naranja
-    return "#ffffff";
+    if(type==="residential") return "#4CAF50";
+    if(type==="commercial") return "#2196F3";
+    if(type==="industrial") return "#FF9800";
+    return "#fff";
 }
 
-// Limpiar nombre
 function sanitizeFileName(name){
     return name.replace(/[^a-z0-9_\- ]/gi,"").trim();
 }
 
-// Actualizar capacidad
 function updateCapacity(){
     const type = document.getElementById("type").value;
     const sizeMultiplier = parseInt(document.getElementById("size").value);
-    let floors = parseInt(document.getElementById("floors").value);
-    if(isNaN(floors) || floors<1) floors = 1;
+    let floors = parseInt(document.getElementById("floors").value)||1;
     let base = (type==="residential"?8:type==="commercial"?5:4);
-    document.getElementById("capacity").value = floors * (sizeMultiplier*sizeMultiplier) * base;
+    document.getElementById("capacity").value = floors*(sizeMultiplier*sizeMultiplier)*base;
 }
 
-// Redimensionar imagen
-function getImageSize(multiplier){ return 128 * multiplier; }
+function getImageSize(multiplier){ return 128*multiplier; }
 
 async function resizeImage(file,multiplier){
     return new Promise(resolve=>{
         const img = new Image();
-        img.onload = function(){
-            const canvas = document.createElement("canvas");
-            const size = getImageSize(multiplier);
-            canvas.width = size; canvas.height = size;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img,0,0,size,size);
-            canvas.toBlob(blob => resolve(blob),"image/png");
+        img.onload=function(){
+            const canvas=document.createElement("canvas");
+            canvas.width=canvas.height=getImageSize(multiplier);
+            const ctx=canvas.getContext("2d");
+            ctx.drawImage(img,0,0,canvas.width,canvas.height);
+            canvas.toBlob(blob=>resolve(blob),"image/png");
         };
-        img.src = URL.createObjectURL(file);
+        img.src=URL.createObjectURL(file);
     });
 }
 
-// Vista previa tipo tarjeta
 async function previewImages(){
-    const container = document.getElementById("previewContainer");
+    const container=document.getElementById("previewContainer");
     container.innerHTML="";
-    const sizeMultiplier = parseInt(document.getElementById("size").value);
-    const floors = parseInt(document.getElementById("floors").value)||1;
-    const capacity = parseInt(document.getElementById("capacity").value)||0;
-    const type = document.getElementById("type").value;
-    const color = getTypeColor(type);
-    const basePrice = parseInt(document.getElementById("basePrice").value)||150;
-    const maxLevel = parseInt(document.getElementById("maxLevel").value)||5;
-    const incomeBonus = parseInt(document.getElementById("incomeBonus").value)||0;
-    const price = floors * sizeMultiplier * basePrice;
+    const sizeMultiplier=parseInt(document.getElementById("size").value);
+    const floors=parseInt(document.getElementById("floors").value)||1;
+    const capacity=parseInt(document.getElementById("capacity").value)||0;
+    const type=document.getElementById("type").value;
+    const color=getTypeColor(type);
+    const basePrice=parseInt(document.getElementById("basePrice").value)||150;
+    const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
+    const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
+    const price=floors*sizeMultiplier*basePrice;
 
     for(const file of uploadedImages){
-        const blob = await resizeImage(file,sizeMultiplier);
-        const card = document.createElement("div");
-        card.className = "preview-card";
-        card.style.border = `2px solid ${color}`;
+        const blob=await resizeImage(file,sizeMultiplier);
+        const card=document.createElement("div");
+        card.className="preview-card";
+        card.style.border=`2px solid ${color}`;
         card.innerHTML=`
             <img src="${URL.createObjectURL(blob)}">
             <div><b>${document.getElementById("buildingName").value}</b></div>
@@ -125,50 +133,50 @@ async function previewImages(){
     }
 }
 
-// Canvas del mini-mapa
 async function renderCityPreview(){
-    const canvas = document.getElementById("cityPreview");
-    const ctx = canvas.getContext("2d");
+    const canvas=document.getElementById("cityPreview");
+    const ctx=canvas.getContext("2d");
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle="#222";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    const sizeMultiplier = parseInt(document.getElementById("size").value);
-    const floors = parseInt(document.getElementById("floors").value)||1;
-    const type = document.getElementById("type").value;
-    const color = getTypeColor(type);
+    const sizeMultiplier=parseInt(document.getElementById("size").value);
+    const floors=parseInt(document.getElementById("floors").value)||1;
+    const type=document.getElementById("type").value;
+    const color=getTypeColor(type);
     const tileSize=20;
 
-    // Centrar edificio
-    const startX = Math.floor((canvas.width/2) - (sizeMultiplier*tileSize)/2);
-    const startY = Math.floor((canvas.height/2) - (sizeMultiplier*tileSize)/2);
+    // Recuadro centrado del tamaño
+    const startX=Math.floor((canvas.width/2)-(sizeMultiplier*tileSize)/2);
+    const startY=Math.floor((canvas.height/2)-(sizeMultiplier*tileSize)/2);
 
-    // Dibujar edificio
-    ctx.fillStyle = color;
+    ctx.fillStyle=color;
     for(let x=0;x<sizeMultiplier;x++){
         for(let y=0;y<sizeMultiplier;y++){
-            ctx.fillRect(startX + x*tileSize, startY + y*tileSize, tileSize, tileSize);
+            ctx.fillRect(startX+x*tileSize,startY+y*tileSize,tileSize,tileSize);
             ctx.strokeStyle="#111";
-            ctx.strokeRect(startX + x*tileSize, startY + y*tileSize, tileSize, tileSize);
+            ctx.strokeRect(startX+x*tileSize,startY+y*tileSize,tileSize,tileSize);
         }
     }
 
-    // Mostrar número de pisos centrado
+    // Mostrar nombre del edificio centrado
     ctx.fillStyle="#fff";
-    ctx.font="14px Arial";
+    ctx.font="12px Arial";
     ctx.textAlign="center";
-    ctx.fillText(floors,startX + (sizeMultiplier*tileSize)/2, startY + (sizeMultiplier*tileSize)/2 + 5);
+    const name=document.getElementById("buildingName").value;
+    ctx.fillText(name,startX+(sizeMultiplier*tileSize)/2,startY+(sizeMultiplier*tileSize)/2);
+    // Mostrar pisos centrado debajo del nombre
+    ctx.fillText(`Pisos: ${floors}`,startX+(sizeMultiplier*tileSize)/2,startY+(sizeMultiplier*tileSize)/2 + 15);
 }
 
 // Manejo de archivos
 document.getElementById("imageInput").addEventListener("change",function(event){
-    uploadedImages = Array.from(event.target.files);
+    uploadedImages=Array.from(event.target.files);
     updateCapacity();
     previewImages();
     renderCityPreview();
 });
 
-// Listeners de inputs
 ["type","size","floors","basePrice","maxLevel","incomeBonus"].forEach(id=>{
     document.getElementById(id).addEventListener("input",()=>{
         updateCapacity();
@@ -177,51 +185,50 @@ document.getElementById("imageInput").addEventListener("change",function(event){
     });
 });
 
-// Generar plugin completo
+// Generar ZIP con JSON y previews
 async function generatePlugin(){
-    const name = document.getElementById("buildingName").value;
-    const type = document.getElementById("type").value;
-    const sizeMultiplier = parseInt(document.getElementById("size").value);
-    let floors = parseInt(document.getElementById("floors").value);
+    const name=document.getElementById("buildingName").value;
+    const type=document.getElementById("type").value;
+    const sizeMultiplier=parseInt(document.getElementById("size").value);
+    let floors=parseInt(document.getElementById("floors").value);
     if(isNaN(floors)||floors<1) floors=1;
     const basePrice=parseInt(document.getElementById("basePrice").value)||150;
     const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
     const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
 
     if(!name || uploadedImages.length===0){alert("Completa los datos y sube al menos una imagen."); return;}
+
     const zip=new JSZip();
     const folder=zip.folder(sanitizeFileName(name));
 
     for(let i=0;i<uploadedImages.length;i++){
         const imgFile=uploadedImages[i];
         const resizedImage=await resizeImage(imgFile,sizeMultiplier);
-        const capacity = floors*(sizeMultiplier*sizeMultiplier)*(type==="residential"?8:type==="commercial"?5:4);
+        const capacity=floors*(sizeMultiplier*sizeMultiplier)*(type==="residential"?8:type==="commercial"?5:4);
         const price=floors*sizeMultiplier*basePrice;
 
-        // Canvas para preview
-        const canvas = document.createElement("canvas");
+        // Canvas preview tarjeta
+        const canvas=document.createElement("canvas");
         canvas.width=150; canvas.height=200;
-        const ctx = canvas.getContext("2d");
+        const ctx=canvas.getContext("2d");
         ctx.fillStyle="#2a2a2a"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        const imgObj = await new Promise(res=>{
-            const img = new Image();
-            img.onload = ()=>res(img);
-            img.src = URL.createObjectURL(resizedImage);
+        const imgObj=await new Promise(res=>{
+            const img=new Image();
+            img.onload=()=>res(img);
+            img.src=URL.createObjectURL(resizedImage);
         });
         ctx.drawImage(imgObj,25,10,100,100);
-        ctx.fillStyle = getTypeColor(type);
-        ctx.font="bold 12px Arial"; ctx.fillText(name,10,130);
-        ctx.fillStyle="#fff";
-        ctx.font="12px Arial";
-        ctx.fillText(`Tipo: ${type}`,10,145);
-        ctx.fillText(`Pisos: ${floors}`,10,160);
-        ctx.fillText(`Capacidad: ${capacity}`,10,175);
-        ctx.fillText(`Precio: $${price}`,10,190);
-        const previewBlob = await new Promise(res=>canvas.toBlob(res,"image/png"));
+        ctx.fillStyle=getTypeColor(type); ctx.font="bold 12px Arial"; ctx.fillText(name,75,130);
+        ctx.fillStyle="#fff"; ctx.font="12px Arial";
+        ctx.fillText(`Tipo: ${type}`,75,145);
+        ctx.fillText(`Pisos: ${floors}`,75,160);
+        ctx.fillText(`Capacidad: ${capacity}`,75,175);
+        ctx.fillText(`Precio: $${price}`,75,190);
+        const previewBlob=await new Promise(res=>canvas.toBlob(res,"image/png"));
 
-        const buildingData = {
+        const buildingData={
             meta:{
-                id: sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_")+(i>0?"_"+i:""),
+                id:sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_")+(i>0?"_"+i:""),
                 title:name,
                 author:"TheoGen User",
                 version:"1.0"
