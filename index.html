@@ -2,25 +2,25 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TheoGen PRO 5.5</title>
+<title>TheoGen PRO 5.6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { font-family: Arial; background:#121212; color:white; text-align:center; }
 .container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:540px; margin:auto; border-radius:10px; text-align:left; }
+.card { background:#1e1e1e; padding:20px; width:560px; margin:auto; border-radius:10px; text-align:left; }
 label { display:block; margin-top:10px; font-weight:bold; }
 input, select { width:95%; padding:8px; margin:5px auto; display:block; }
 button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
 .building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:220px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:240px; text-align:center; display:flex; flex-direction:column; align-items:center; }
 .preview-card img { width:120px; height:120px; border-radius:5px; margin-bottom:10px; }
-.mini-map, .theotown-preview { margin-top:10px; border:1px solid #555; }
+.theotown-preview { margin-top:10px; border:1px solid #555; }
 </style>
 </head>
 <body>
 
 <div class="container">
-<h1>TheoGen PRO 5.5</h1>
+<h1>TheoGen PRO 5.6</h1>
 <div class="card">
 
 <label for="buildingName">Nombre del Edificio</label>
@@ -99,50 +99,41 @@ async function resizeImage(file,multiplier){
     });
 }
 
-function generateMiniMap(sizeMultiplier,type){
-    const tileSize=20;
-    const canvas=document.createElement("canvas");
-    canvas.width=tileSize*sizeMultiplier;
-    canvas.height=tileSize*sizeMultiplier;
-    const ctx=canvas.getContext("2d");
-    ctx.fillStyle=getTypeColor(type);
-    for(let x=0;x<sizeMultiplier;x++){
-        for(let y=0;y<sizeMultiplier;y++){
-            ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
-            ctx.strokeStyle="#111";
-            ctx.strokeRect(x*tileSize,y*tileSize,tileSize,tileSize);
-        }
-    }
-    return canvas;
-}
-
-function generateTheoTownPreview(sizeMultiplier,type,floors){
+// Genera la previsualización real estilo TheoTown
+function generateTheoTownPreviewCanvas(sizeMultiplier,type,floors){
     const tileSize=20;
     const width=tileSize*sizeMultiplier;
-    const height=tileSize*sizeMultiplier + floors*5;
+    const height=tileSize*sizeMultiplier + floors*10; // altura visual de pisos
     const canvas=document.createElement("canvas");
     canvas.width=width;
     canvas.height=height;
     const ctx=canvas.getContext("2d");
+
+    // Dibuja pisos con efecto 3D simple
+    for(let f=0;f<floors;f++){
+        ctx.fillStyle=`rgba(255,255,255,${0.05*(f+1)})`;
+        ctx.fillRect(0,height-(f+1)*10,width,10);
+    }
+
+    // Dibuja tiles base del edificio
     ctx.fillStyle=getTypeColor(type);
     for(let x=0;x<sizeMultiplier;x++){
         for(let y=0;y<sizeMultiplier;y++){
-            ctx.fillRect(x*tileSize,floors*5 + y*tileSize,tileSize,tileSize);
+            ctx.fillRect(x*tileSize,height-tileSize-(floors*10)+y*tileSize,tileSize,tileSize);
             ctx.strokeStyle="#111";
-            ctx.strokeRect(x*tileSize,floors*5 + y*tileSize,tileSize,tileSize);
+            ctx.strokeRect(x*tileSize,height-tileSize-(floors*10)+y*tileSize,tileSize,tileSize);
         }
     }
-    for(let i=0;i<floors;i++){
-        ctx.fillStyle="rgba(255,255,255,0.1)";
-        ctx.fillRect(0,(floors-i-1)*5,width,height-(floors-i-1)*5);
-    }
-    ctx.fillStyle="#fff"; ctx.font="12px Arial"; ctx.textAlign="center";
-    ctx.fillText("Edificio",width/2,10);
-    ctx.fillText(`Pisos: ${floors}`,width/2,25);
-    canvas.className="theotown-preview";
+
+    // Nombre y pisos
+    ctx.fillStyle="#fff"; ctx.font="bold 12px Arial"; ctx.textAlign="center";
+    ctx.fillText("Edificio",width/2,15);
+    ctx.fillText(`Pisos: ${floors}`,width/2,30);
+
     return canvas;
 }
 
+// Previsualización
 async function previewImages(){
     const container=document.getElementById("previewContainer");
     container.innerHTML="";
@@ -160,8 +151,8 @@ async function previewImages(){
         const card=document.createElement("div");
         card.className="preview-card";
         card.style.border=`2px solid ${getTypeColor(type)}`;
-        const miniMap=generateMiniMap(sizeMultiplier,type);
-        const theoPreview=generateTheoTownPreview(sizeMultiplier,type,floors);
+
+        const theoPreview=generateTheoTownPreviewCanvas(sizeMultiplier,type,floors);
         card.innerHTML=`
             <img src="${URL.createObjectURL(blob)}">
             <div><b>${document.getElementById("buildingName").value}</b></div>
@@ -172,7 +163,6 @@ async function previewImages(){
             <div>Nivel max: ${maxLevel}</div>
             <div>Bonus: ${incomeBonus}%</div>
         `;
-        card.appendChild(miniMap);
         card.appendChild(theoPreview);
         container.appendChild(card);
     }
@@ -191,11 +181,12 @@ document.getElementById("imageInput").addEventListener("change",function(event){
     });
 });
 
+// Generar ZIP compatible con TheoTown
 async function generatePlugin(){
     const name=document.getElementById("buildingName").value;
     const type=document.getElementById("type").value;
     const sizeMultiplier=parseInt(document.getElementById("size").value);
-    let floors=parseInt(document.getElementById("floors").value)||1;
+    const floors=parseInt(document.getElementById("floors").value)||1;
     const basePrice=parseInt(document.getElementById("basePrice").value)||150;
     const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
     const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
@@ -211,7 +202,6 @@ async function generatePlugin(){
         const capacity=floors*(sizeMultiplier*sizeMultiplier)*(type==="residential"?8:type==="commercial"?5:4);
         const price=floors*sizeMultiplier*basePrice;
 
-        // TheoTown JSON oficial
         const buildingData={
             meta:{
                 id:sanitizeFileName(name).toLowerCase().replace(/\s+/g,"_")+(i>0?"_"+i:""),
@@ -233,31 +223,9 @@ async function generatePlugin(){
             }
         };
 
-        const canvas=document.createElement("canvas");
-        canvas.width=220; canvas.height=300;
-        const ctx=canvas.getContext("2d");
-        ctx.fillStyle="#2a2a2a"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        const imgObj=await new Promise(res=>{
-            const img=new Image();
-            img.onload=()=>res(img);
-            img.src=URL.createObjectURL(resizedImage);
-        });
-        ctx.drawImage(imgObj,50,10,120,120);
-        ctx.fillStyle=getTypeColor(type); ctx.font="bold 12px Arial"; ctx.textAlign="center";
-        ctx.fillText(name,canvas.width/2,145);
-        ctx.fillStyle="#fff"; ctx.font="12px Arial";
-        ctx.fillText(`Tipo: ${type}`,canvas.width/2,160);
-        ctx.fillText(`Pisos: ${floors}`,canvas.width/2,175);
-        ctx.fillText(`Capacidad: ${capacity}`,canvas.width/2,190);
-        ctx.fillText(`Precio: $${price}`,canvas.width/2,205);
-        const miniMapCanvas=generateMiniMap(sizeMultiplier,type);
-        ctx.drawImage(miniMapCanvas,(canvas.width-miniMapCanvas.width)/2,210);
-        const theoPreviewCanvas=generateTheoTownPreview(sizeMultiplier,type,floors);
-        ctx.drawImage(theoPreviewCanvas,(canvas.width-theoPreviewCanvas.width)/2,220+miniMapCanvas.height);
+        const previewCanvas=generateTheoTownPreviewCanvas(sizeMultiplier,type,floors);
+        const previewBlob=await new Promise(res=>previewCanvas.toBlob(res,"image/png"));
 
-        const previewBlob=await new Promise(res=>canvas.toBlob(res,"image/png"));
-
-        // Archivos dentro del ZIP
         folder.file(`plugin.json`,JSON.stringify(buildingData,null,4));
         folder.file(`image.png`,resizedImage);
         folder.file(`preview.png`,previewBlob);
