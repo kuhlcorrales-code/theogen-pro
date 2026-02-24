@@ -1,195 +1,26 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>TheoGen PRO 5.6c</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<style>
-body { font-family: Arial; background:#121212; color:white; text-align:center; }
-.container { margin-top:30px; }
-.card { background:#1e1e1e; padding:20px; width:650px; margin:auto; border-radius:10px; text-align:left; }
-label { display:block; margin-top:10px; font-weight:bold; }
-input, select { width:95%; padding:8px; margin:5px auto; display:block; }
-button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
-
-.building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-
-.preview-card {
-    background:#2a2a2a;
-    padding:10px;
-    border-radius:8px;
-    width:260px;
-    text-align:center;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    perspective:800px;
-}
-
-.building-3d {
-    width:120px;
-    height:120px;
-    transform-style: preserve-3d;
-    margin-bottom:10px;
-    transform: rotateX(25deg) rotateY(-25deg);
-    transition: transform 0.3s;
-}
-
-.building-3d:hover {
-    transform: rotateX(25deg) rotateY(-25deg) rotateZ(10deg);
-}
-
-.floor {
-    width:100%;
-    height:22px;
-    margin-bottom:2px;
-    border-radius:3px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    box-shadow: 0px 2px 5px rgba(0,0,0,0.5);
-}
-
-.mini-map { margin-top:5px; display:flex; justify-content:center; flex-wrap:wrap; gap:2px; }
-.mini-map span { width:20px; height:20px; display:inline-block; border-radius:3px; background:green; }
-</style>
-</head>
-<body>
-
-<div class="container">
-<h1>TheoGen PRO 5.6c</h1>
-<div class="card">
-
-<label for="buildingName">Nombre del Edificio</label>
-<input type="text" id="buildingName" placeholder="Ej: casa">
-
-<label for="type">Tipo de Edificio</label>
-<select id="type">
-<option value="residential">Residencial</option>
-<option value="commercial">Comercial</option>
-<option value="industrial">Industrial</option>
-</select>
-
-<label for="size">Tamaño (1-10)</label>
-<input type="number" id="size" placeholder="Ej: 3" min="1" max="10" value="2">
-
-<label for="floors">Número de Pisos</label>
-<input type="number" id="floors" placeholder="Ej: 2" min="1" value="1">
-
-<label for="capacity">Capacidad (automática)</label>
-<input type="number" id="capacity" readonly>
-
-<label for="basePrice">Precio base por piso</label>
-<input type="number" id="basePrice" value="150" min="1">
-
-<label for="maxLevel">Nivel máximo</label>
-<input type="number" id="maxLevel" value="5" min="1" max="5">
-
-<label for="incomeBonus">Bonus ingresos (%)</label>
-<input type="number" id="incomeBonus" value="0" min="0" max="200">
-
-<label for="imageInput">Imagen del edificio</label>
-<input type="file" id="imageInput" accept="image/*" multiple>
-
-<div class="building-preview" id="previewContainer"></div>
-
-<button onclick="generatePlugin()">Generar Plugin</button>
-
-</div>
-</div>
-
-<script>
-let uploadedImages = [];
-
-function getTypeGradient(type){
-    if(type==="residential") return "linear-gradient(to bottom, #76c893, #4CAF50)";
-    if(type==="commercial") return "linear-gradient(to bottom, #64b5f6, #2196F3)";
-    if(type==="industrial") return "linear-gradient(to bottom, #ffb74d, #FF9800)";
-    return "linear-gradient(to bottom, #aaa, #777)";
-}
-
-function sanitizeFileName(name){
-    return name.replace(/[^a-z0-9_\- ]/gi,"").trim();
-}
-
-function updateCapacity(){
-    const type=document.getElementById("type").value;
-    const sizeMultiplier=parseInt(document.getElementById("size").value);
-    let floors=parseInt(document.getElementById("floors").value)||1;
-    let base=(type==="residential"?8:type==="commercial"?5:4);
-    document.getElementById("capacity").value=floors*(sizeMultiplier*sizeMultiplier)*base;
-}
-
-async function pixelateImage(file, pixelSize){
-    return new Promise(resolve=>{
-        const img = new Image();
-        img.onload = function(){
-            const canvas = document.createElement("canvas");
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img,0,0);
-
-            const w = Math.floor(img.width / pixelSize);
-            const h = Math.floor(img.height / pixelSize);
-            const temp = document.createElement("canvas");
-            temp.width = w; temp.height = h;
-            const tctx = temp.getContext("2d");
-            tctx.drawImage(canvas,0,0,w,h);
-
-            ctx.imageSmoothingEnabled = false;
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            ctx.drawImage(temp,0,0,canvas.width,canvas.height);
-
-            canvas.toBlob(blob=>resolve(blob),"image/png");
-        };
-        img.src = URL.createObjectURL(file);
-    });
-}
-
-async function create3DBuildingWithTexture(floors, type, imgBlob){
-    const container = document.createElement("div");
-    container.className="building-3d";
-    const imgURL = imgBlob ? URL.createObjectURL(imgBlob) : null;
-
-    for(let i=0; i<floors; i++){
-        const floor = document.createElement("div");
-        floor.className="floor";
-        floor.style.background = imgURL ? `url(${imgURL})` : getTypeGradient(type);
-        floor.style.transform = `translateZ(${i*24}px)`;
-        floor.style.boxShadow = `0 ${i*2}px ${5+i}px rgba(0,0,0,0.5)`;
-        container.appendChild(floor);
-    }
-    return container;
-}
-
-// --- FUNCION REESCRITA previewImages() ---
 async function previewImages(){
-    const container=document.getElementById("previewContainer");
-    container.innerHTML="";
+    const container = document.getElementById("previewContainer");
+    container.innerHTML = "";
 
-    const sizeMultiplier=parseInt(document.getElementById("size").value);
-    const floors=parseInt(document.getElementById("floors").value)||1;
-    const capacity=parseInt(document.getElementById("capacity").value)||0;
-    const type=document.getElementById("type").value;
-    const basePrice=parseInt(document.getElementById("basePrice").value)||150;
-    const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
-    const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
-    const name=document.getElementById("buildingName").value || "Edificio";
-    const price=floors*sizeMultiplier*basePrice;
+    const sizeMultiplier = parseInt(document.getElementById("size").value);
+    const floors = parseInt(document.getElementById("floors").value) || 1;
+    const capacity = parseInt(document.getElementById("capacity").value) || 0;
+    const type = document.getElementById("type").value;
+    const basePrice = parseInt(document.getElementById("basePrice").value) || 150;
+    const maxLevel = parseInt(document.getElementById("maxLevel").value) || 5;
+    const incomeBonus = parseInt(document.getElementById("incomeBonus").value) || 0;
+    const name = document.getElementById("buildingName").value || "Edificio";
+    const price = floors * sizeMultiplier * basePrice;
 
-    for(const file of uploadedImages){
-        // Pixelamos la imagen
+    for (const file of uploadedImages) {
         const pixelBlob = await pixelateImage(file, 8);
 
         const card = document.createElement("div");
         card.className = "preview-card";
 
-        // Creamos el edificio 3D
         const building3D = await create3DBuildingWithTexture(floors, type, pixelBlob);
         card.appendChild(building3D);
 
-        // Info del edificio
         const infoDiv = document.createElement("div");
         infoDiv.innerHTML = `
             <div><b>${name}</b></div>
@@ -202,39 +33,37 @@ async function previewImages(){
         `;
         card.appendChild(infoDiv);
 
-        // Mini-mapa
+        // --- Mini-mapa 3D realista ---
         const miniMap = document.createElement("div");
         miniMap.className = "mini-map";
-        const totalUnits = floors * sizeMultiplier * sizeMultiplier;
-        for(let i=0;i<totalUnits;i++){
-            const span = document.createElement("span");
-            miniMap.appendChild(span);
-        }
-        card.appendChild(miniMap);
+        miniMap.style.position = "relative";
+        miniMap.style.width = `${sizeMultiplier * 22}px`;
+        miniMap.style.height = `${floors * 22}px`; // altura proporcional a pisos
 
+        for(let f = 0; f < floors; f++){
+            const floorDiv = document.createElement("div");
+            floorDiv.style.display = "grid";
+            floorDiv.style.gridTemplateColumns = `repeat(${sizeMultiplier}, 20px)`;
+            floorDiv.style.gridTemplateRows = `repeat(${sizeMultiplier}, 20px)`;
+            floorDiv.style.gap = "2px";
+            floorDiv.style.position = "absolute";
+            floorDiv.style.bottom = `${f * 22}px`; // apilar pisos
+            floorDiv.style.left = "0";
+
+            // rellenar cuadrícula
+            for(let i=0;i<sizeMultiplier*sizeMultiplier;i++){
+                const cell = document.createElement("span");
+                cell.style.display = "block";
+                cell.style.width = "20px";
+                cell.style.height = "20px";
+                cell.style.background = getTypeGradient(type).includes("linear") ? "green" : getTypeGradient(type);
+                cell.style.borderRadius = "2px";
+                floorDiv.appendChild(cell);
+            }
+            miniMap.appendChild(floorDiv);
+        }
+
+        card.appendChild(miniMap);
         container.appendChild(card);
     }
 }
-
-// --- EVENTOS ---
-document.getElementById("imageInput").addEventListener("change", function(event){
-    uploadedImages = Array.from(event.target.files);
-    updateCapacity();
-    previewImages();
-});
-
-["type","size","floors","basePrice","maxLevel","incomeBonus","buildingName"].forEach(id=>{
-    document.getElementById(id).addEventListener("input", ()=>{
-        updateCapacity();
-        previewImages();
-    });
-});
-
-async function generatePlugin(){
-    if(!uploadedImages.length){alert("Sube al menos una imagen."); return;}
-    alert("Plugin generado con imagen pixelada y datos del edificio!");
-}
-</script>
-
-</body>
-</html>
