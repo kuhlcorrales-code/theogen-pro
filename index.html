@@ -1,28 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>TheoGen PRO 5.6b</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+body { font-family: Arial; background:#121212; color:white; text-align:center; }
+.container { margin-top:30px; }
+.card { background:#1e1e1e; padding:20px; width:600px; margin:auto; border-radius:10px; text-align:left; }
+label { display:block; margin-top:10px; font-weight:bold; }
+input, select { width:95%; padding:8px; margin:5px auto; display:block; }
+button { padding:10px; width:95%; margin-top:15px; background:#00c853; border:none; color:white; font-weight:bold; cursor:pointer; }
+.building-preview { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
+.preview-card { background:#2a2a2a; padding:10px; border-radius:8px; width:250px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.preview-card img { width:150px; height:150px; border-radius:5px; margin-bottom:10px; object-fit:cover; }
+.mini-map { margin-top:5px; display:flex; justify-content:center; flex-wrap:wrap; gap:2px; }
+.mini-map span { width:20px; height:20px; background:green; display:inline-block; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>TheoGen PRO 5.6b</h1>
+<div class="card">
+
+<label for="buildingName">Nombre del Edificio</label>
+<input type="text" id="buildingName" placeholder="Ej: casa">
+
+<label for="type">Tipo de Edificio</label>
+<select id="type">
+<option value="residential">Residencial</option>
+<option value="commercial">Comercial</option>
+<option value="industrial">Industrial</option>
+</select>
+
+<label for="size">Tamaño (1-10)</label>
+<input type="number" id="size" placeholder="Ej: 3" min="1" max="10" value="2">
+
+<label for="floors">Número de Pisos</label>
+<input type="number" id="floors" placeholder="Ej: 2" min="1" value="1">
+
+<label for="capacity">Capacidad (automática)</label>
+<input type="number" id="capacity" readonly>
+
+<label for="basePrice">Precio base por piso</label>
+<input type="number" id="basePrice" value="150" min="1">
+
+<label for="maxLevel">Nivel máximo</label>
+<input type="number" id="maxLevel" value="5" min="1" max="5">
+
+<label for="incomeBonus">Bonus ingresos (%)</label>
+<input type="number" id="incomeBonus" value="0" min="0" max="200">
+
+<label for="imageInput">Imagen del edificio</label>
+<input type="file" id="imageInput" accept="image/*" multiple>
+
+<div class="building-preview" id="previewContainer"></div>
+
+<button onclick="generatePlugin()">Generar Plugin</button>
+
+</div>
+</div>
+
+<script>
+let uploadedImages = [];
+
+function getTypeColor(type){
+    if(type==="residential") return "#4CAF50";
+    if(type==="commercial") return "#2196F3";
+    if(type==="industrial") return "#FF9800";
+    return "#fff";
+}
+
+function sanitizeFileName(name){
+    return name.replace(/[^a-z0-9_\- ]/gi,"").trim();
+}
+
+function updateCapacity(){
+    const type=document.getElementById("type").value;
+    const sizeMultiplier=parseInt(document.getElementById("size").value);
+    let floors=parseInt(document.getElementById("floors").value)||1;
+    let base=(type==="residential"?8:type==="commercial"?5:4);
+    document.getElementById("capacity").value=floors*(sizeMultiplier*sizeMultiplier)*base;
+}
+
+// --- Pixelizar imagen ---
+async function pixelateImage(file, pixelSize){
+    return new Promise(resolve=>{
+        const img = new Image();
+        img.onload = function(){
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img,0,0);
+
+            // Reducir tamaño
+            const w = Math.floor(img.width / pixelSize);
+            const h = Math.floor(img.height / pixelSize);
+            const temp = document.createElement("canvas");
+            temp.width = w; temp.height = h;
+            const tctx = temp.getContext("2d");
+            tctx.drawImage(canvas,0,0,w,h);
+
+            // Escalar otra vez
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.drawImage(temp,0,0,canvas.width,canvas.height);
+
+            canvas.toBlob(blob=>resolve(blob),"image/png");
+        };
+        img.src = URL.createObjectURL(file);
+    });
+}
+
 async function previewImages(){
-    const container = document.getElementById("previewContainer");
-    container.innerHTML = "";
+    const container=document.getElementById("previewContainer");
+    container.innerHTML="";
+    const sizeMultiplier=parseInt(document.getElementById("size").value);
+    const floors=parseInt(document.getElementById("floors").value)||1;
+    const capacity=parseInt(document.getElementById("capacity").value)||0;
+    const type=document.getElementById("type").value;
+    const basePrice=parseInt(document.getElementById("basePrice").value)||150;
+    const maxLevel=parseInt(document.getElementById("maxLevel").value)||5;
+    const incomeBonus=parseInt(document.getElementById("incomeBonus").value)||0;
+    const name=document.getElementById("buildingName").value || "Edificio";
+    const price=floors*sizeMultiplier*basePrice;
 
-    const sizeMultiplier = parseInt(document.getElementById("size").value);
-    const floors = parseInt(document.getElementById("floors").value) || 1;
-    const capacity = parseInt(document.getElementById("capacity").value) || 0;
-    const type = document.getElementById("type").value;
-    const basePrice = parseInt(document.getElementById("basePrice").value) || 150;
-    const maxLevel = parseInt(document.getElementById("maxLevel").value) || 5;
-    const incomeBonus = parseInt(document.getElementById("incomeBonus").value) || 0;
-    const name = document.getElementById("buildingName").value || "Edificio";
-    const price = floors * sizeMultiplier * basePrice;
+    for(const file of uploadedImages){
+        const pixelBlob = await pixelateImage(file,8);
+        const imgURL = URL.createObjectURL(pixelBlob);
 
-    for (const file of uploadedImages) {
-        const pixelBlob = await pixelateImage(file, 8);
-
-        const card = document.createElement("div");
-        card.className = "preview-card";
-
-        const building3D = await create3DBuildingWithTexture(floors, type, pixelBlob);
-        card.appendChild(building3D);
-
-        const infoDiv = document.createElement("div");
-        infoDiv.innerHTML = `
+        const card=document.createElement("div");
+        card.className="preview-card";
+        card.style.border=`2px solid ${getTypeColor(type)}`;
+        card.innerHTML = `
+            <img src="${imgURL}" alt="Edificio">
             <div><b>${name}</b></div>
             <div>Tipo: ${type}</div>
             <div>Pisos: ${floors}</div>
@@ -30,40 +143,33 @@ async function previewImages(){
             <div>Precio: $${price}</div>
             <div>Nivel max: ${maxLevel}</div>
             <div>Bonus: ${incomeBonus}%</div>
+            <div class="mini-map">
+                ${Array(floors*sizeMultiplier*sizeMultiplier).fill(0).map(()=>'<span></span>').join('')}
+            </div>
         `;
-        card.appendChild(infoDiv);
-
-        // --- Mini-mapa 3D realista ---
-        const miniMap = document.createElement("div");
-        miniMap.className = "mini-map";
-        miniMap.style.position = "relative";
-        miniMap.style.width = `${sizeMultiplier * 22}px`;
-        miniMap.style.height = `${floors * 22}px`; // altura proporcional a pisos
-
-        for(let f = 0; f < floors; f++){
-            const floorDiv = document.createElement("div");
-            floorDiv.style.display = "grid";
-            floorDiv.style.gridTemplateColumns = `repeat(${sizeMultiplier}, 20px)`;
-            floorDiv.style.gridTemplateRows = `repeat(${sizeMultiplier}, 20px)`;
-            floorDiv.style.gap = "2px";
-            floorDiv.style.position = "absolute";
-            floorDiv.style.bottom = `${f * 22}px`; // apilar pisos
-            floorDiv.style.left = "0";
-
-            // rellenar cuadrícula
-            for(let i=0;i<sizeMultiplier*sizeMultiplier;i++){
-                const cell = document.createElement("span");
-                cell.style.display = "block";
-                cell.style.width = "20px";
-                cell.style.height = "20px";
-                cell.style.background = getTypeGradient(type).includes("linear") ? "green" : getTypeGradient(type);
-                cell.style.borderRadius = "2px";
-                floorDiv.appendChild(cell);
-            }
-            miniMap.appendChild(floorDiv);
-        }
-
-        card.appendChild(miniMap);
         container.appendChild(card);
     }
 }
+
+document.getElementById("imageInput").addEventListener("change",function(event){
+    uploadedImages=Array.from(event.target.files);
+    updateCapacity();
+    previewImages();
+});
+
+["type","size","floors","basePrice","maxLevel","incomeBonus","buildingName"].forEach(id=>{
+    document.getElementById(id).addEventListener("input",()=>{
+        updateCapacity();
+        previewImages();
+    });
+});
+
+// Generar ZIP
+async function generatePlugin(){
+    if(!uploadedImages.length){alert("Sube al menos una imagen."); return;}
+    alert("Plugin generado con imagen pixelada y datos del edificio!");
+}
+</script>
+
+</body>
+</html>
